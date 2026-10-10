@@ -1,0 +1,269 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id        String       @id @default(uuid()) @db.Uuid
+  email     String       @unique
+  roleId    String?      @map("role_id") @db.Uuid
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+  isActive  Boolean      @default(true) @map("is_active")
+  posts     Post[]
+  profile   UserProfile?
+  role      Role?        @relation(fields: [roleId], references: [id])
+
+  @@map("users")
+}
+
+model UserProfile {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @unique @map("user_id") @db.Uuid
+  firstName String?  @map("first_name")
+  lastName  String?  @map("last_name")
+  avatar    String?
+  bio       String?
+  phone     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model Post {
+  id        String   @id @default(uuid()) @db.Uuid
+  title     String
+  content   String?
+  published Boolean  @default(false)
+  authorId  String   @map("author_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@map("posts")
+}
+
+model Category {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique
+  description String?
+  color       String?  @default("#3B82F6")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("categories")
+}
+
+model Role {
+  id          String           @id @default(uuid()) @db.Uuid
+  name        String           @unique
+  description String?
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  permissions RolePermission[]
+  users       User[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String           @id @default(uuid()) @db.Uuid
+  name        String           @unique
+  description String?
+  resource    String
+  action      String
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  roles       RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String     @id @default(uuid()) @db.Uuid
+  roleId       String     @map("role_id") @db.Uuid
+  permissionId String     @map("permission_id") @db.Uuid
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model boletas {
+  folio              Int                @id
+  id                 Int?
+  sucursal_id        Float?             @db.Real
+  tipodoc            String?            @db.VarChar(10)
+  fecha              DateTime?          @db.Date
+  rut                String?            @db.VarChar(20)
+  rs                 String?
+  montoneto          Decimal?           @db.Decimal(12, 2)
+  montoexento        Decimal?           @db.Decimal(12, 2)
+  montoiva           Decimal?           @db.Decimal(12, 2)
+  montonf            Decimal?           @db.Decimal(12, 2)
+  montototal         Decimal?           @db.Decimal(12, 2)
+  pdf                String?
+  xml                String?
+  estado             String?            @db.VarChar(50)
+  trackid            String?            @db.VarChar(100)
+  referencias        Json?
+  timestamp_descarga DateTime?          @db.Timestamp(6)
+  boletas_detalles   boletas_detalles[]
+  boletas_pagos      boletas_pagos[]
+
+  @@index([fecha], map: "idx_boletas_fecha")
+  @@index([rut], map: "idx_boletas_rut")
+  @@index([fecha, sucursal_id], map: "idx_boletas_fecha_sucursal")
+}
+
+model boletas_detalles {
+  id                  Int      @id @default(autoincrement())
+  boleta_folio        Int?
+  item_index          Int?
+  codigo              String?  @db.VarChar(100)
+  nombre              String?
+  cantidad            Decimal? @db.Decimal(10, 3)
+  unidad              String?  @db.VarChar(20)
+  precio              Decimal? @db.Decimal(12, 2)
+  descuento           Decimal? @db.Decimal(10, 2)
+  exento              Int?
+  bodega              Int?
+  costo_unitario_neto Json?
+  boletas             boletas? @relation(fields: [boleta_folio], references: [folio], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([boleta_folio], map: "idx_boletas_detalles_folio")
+  @@index([boleta_folio], map: "idx_boletas_detalles_boleta_folio")
+  @@index([codigo], map: "idx_boletas_detalles_codigo")
+}
+
+model boletas_pagos {
+  id           Int       @id @default(autoincrement())
+  boleta_folio Int?
+  fecha        DateTime? @db.Timestamp(6)
+  mediopago    Int?
+  monto        Decimal?  @db.Decimal(12, 2)
+  glosa        String?
+  cobrar       Int?
+  boletas      boletas?  @relation(fields: [boleta_folio], references: [folio], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([boleta_folio], map: "idx_boletas_pagos_folio")
+}
+
+model productos_normalizados {
+  codigo         String    @id @db.VarChar(100)
+  nombre_oficial String
+  actualizado_en DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@index([nombre_oficial], map: "idx_prod_norm_nombre")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model productos_pos {
+  id                 BigInt          @id
+  nombre             String
+  codigo             String?         @db.VarChar(100)
+  unidad             String?         @db.VarChar(20)
+  descripcion        String?
+  exento             Boolean?
+  fraccionable       Boolean?
+  activo             Boolean?        @default(true)
+  param1             String?
+  param2             String?
+  param3             String?
+  param4             String?
+  preciocompraneto   Decimal?        @db.Decimal(12, 2)
+  precioventabruto   Decimal?        @db.Decimal(12, 2)
+  cod_imp_venta      String?         @db.VarChar(20)
+  cod_imp_compra     String?         @db.VarChar(20)
+  peso               Decimal?        @db.Decimal(12, 3)
+  largo              Decimal?        @db.Decimal(12, 2)
+  ancho              Decimal?        @db.Decimal(12, 2)
+  alto               Decimal?        @db.Decimal(12, 2)
+  stocks             Json?
+  atributos          Json?
+  otrosprecios       Json?
+  timestamp_descarga DateTime?       @default(now()) @db.Timestamptz(6)
+  stock_minimo       stock_minimo[]
+
+  @@index([activo], map: "idx_productos_activo")
+  @@index([atributos], map: "idx_productos_atrib_gin", type: Gin)
+  @@index([codigo], map: "idx_productos_codigo")
+  @@index([otrosprecios], map: "idx_productos_precios_gin", type: Gin)
+  @@index([stocks], map: "idx_productos_stocks_gin", type: Gin)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model mensaje_destinatarios {
+  id              BigInt    @id @default(autoincrement())
+  mensaje_id      BigInt
+  destinatario_id String    @db.Uuid
+  read_at         DateTime? @db.Timestamptz(6)
+  archived_at     DateTime? @db.Timestamptz(6)
+  deleted_at      DateTime? @db.Timestamptz(6)
+  mensajes        mensajes  @relation(fields: [mensaje_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([mensaje_id, destinatario_id])
+  @@index([destinatario_id, deleted_at, read_at], map: "idx_md_inbox")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model mensajes {
+  id                    BigInt                  @id @default(autoincrement())
+  remitente_id          String                  @db.Uuid
+  asunto                String                  @db.VarChar(160)
+  cuerpo                String
+  created_at            DateTime                @default(now()) @db.Timestamptz(6)
+  mensaje_destinatarios mensaje_destinatarios[]
+
+  @@index([remitente_id, created_at(sort: Desc)], map: "idx_msg_remitente")
+}
+
+model products {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ean               String?           @unique
+  fingerprint       String?           @unique
+  name              String
+  active_ingredient String?
+  created_at        DateTime?         @default(now()) @db.Timestamptz(6)
+  provider_prices   provider_prices[]
+
+  @@index([ean], map: "idx_products_ean")
+  @@index([fingerprint], map: "idx_products_fingerprint")
+}
+
+model provider_prices {
+  id              BigInt    @id @default(autoincrement())
+  product_id      String    @db.Uuid
+  provider_id     String    @db.Uuid
+  price           Decimal   @db.Decimal(10, 2)
+  last_updated_at DateTime? @default(now()) @db.Timestamptz(6)
+  products        products  @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  providers       providers @relation(fields: [provider_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([product_id, provider_id])
+}
+
+model providers {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String            @unique
+  created_at      DateTime?         @default(now()) @db.Timestamptz(6)
+  provider_prices provider_prices[]
+}
+
+model stock_minimo {
+  producto_id    BigInt         @map("producto_id")
+  bodega_id      BigInt         @map("bodega_id")
+  stock_minimo   Decimal        @db.Decimal
+  productos_pos  productos_pos  @relation(fields: [producto_id], references: [id], onDelete: Cascade)
+
+  @@id([producto_id, bodega_id])
+}
