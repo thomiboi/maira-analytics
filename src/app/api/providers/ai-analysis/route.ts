@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { GROQ_MODEL } from '@/lib/groq-model';
 import Groq from 'groq-sdk';
 
 // Configurar Groq
@@ -407,7 +408,7 @@ export async function POST(request: NextRequest) {
 
     // Llamar a Groq IA
     const completion = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
+      model: GROQ_MODEL,
       messages: [
         {
           role: 'system',

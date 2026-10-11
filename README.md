@@ -108,6 +108,8 @@ pnpm install
 
 ### 2. Configurar variables de entorno
 
+Para los análisis con Groq, configura `GROQ_API_KEY`. El modelo se puede cambiar con `GROQ_MODEL`; si no se define, se usa `openai/gpt-oss-20b`. Usa el identificador de modelo que Groq tenga disponible en tu cuenta.
+
 ```bash
 # Copia el archivo de ejemplo
 cp .env.local.example .env.local

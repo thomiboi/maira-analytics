@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { GROQ_MODEL } from '@/lib/groq-model';
 import Groq from 'groq-sdk';
 
 const groq = new Groq({
@@ -159,40 +160,42 @@ DEBES RESPONDER EN JSON con esta estructura EXACTA:
   "casos_detectados": [
     {
       "producto_a": {
-        "codigo": "código del producto",
+        "codigo": "código",
         "nombre": "nombre completo",
-        "ventas": número,
-        "margen": número (porcentaje)
+        "ventas": 0,
+        "margen": 0
       },
       "producto_b": {
-        "codigo": "código del producto",
-        "nombre": "nombre completo", 
-        "ventas": número,
-        "margen": número (porcentaje)
+        "codigo": "código",
+        "nombre": "nombre completo",
+        "ventas": 0,
+        "margen": 0
       },
       "tipo_relacion": "mismo principio activo / misma categoría / competencia directa",
       "nivel_canibalización": "alto / medio / bajo",
       "impacto_economico": {
-        "perdida_mensual_estimada": número en CLP,
+        "perdida_mensual_estimada": 0,
         "explicacion": "cómo se calcula"
       },
       "recomendacion": {
         "accion": "descripción clara de qué hacer",
         "producto_favorecer": "código del producto a favorecer",
         "razon": "por qué favorecer este producto",
-        "ganancia_proyectada": número en CLP mensual
+        "ganancia_proyectada": 0
       }
     }
   ],
-  "total_casos": número,
-  "impacto_total_mensual": número en CLP
+  "total_casos": 0,
+  "impacto_total_mensual": 0
 }
 
 IMPORTANTE:
 - Enfócate en productos con nombres similares (ej: Ibuprofeno 400mg vs 600mg)
 - Prioriza casos donde la diferencia de margen sea significativa (>10%)
 - Sé específico con los números y cálculos
-- Máximo 5 casos más relevantes`;
+- Máximo 5 casos más relevantes
+- Si no hay casos razonables, devuelve "casos_detectados": [] y usa 0 en los totales
+- Los campos numéricos deben ser números, no textos con unidades ni símbolos de moneda`;
 
       const completion = await groq.chat.completions.create({
         messages: [
@@ -205,10 +208,89 @@ IMPORTANTE:
             content: prompt,
           },
         ],
-        model: 'llama-3.3-70b-versatile',
+        model: GROQ_MODEL,
         temperature: 0.3,
-        max_tokens: 3000,
-        response_format: { type: 'json_object' },
+        max_completion_tokens: 6000,
+        reasoning_effort: 'low',
+        include_reasoning: false,
+        response_format: {
+          type: 'json_schema',
+          json_schema: {
+            name: 'analisis_canibalizacion',
+            strict: true,
+            schema: {
+              type: 'object',
+              properties: {
+                resumen: { type: 'string' },
+                casos_detectados: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      producto_a: {
+                        type: 'object',
+                        properties: {
+                          codigo: { type: 'string' },
+                          nombre: { type: 'string' },
+                          ventas: { type: 'number' },
+                          margen: { type: 'number' },
+                        },
+                        required: ['codigo', 'nombre', 'ventas', 'margen'],
+                        additionalProperties: false,
+                      },
+                      producto_b: {
+                        type: 'object',
+                        properties: {
+                          codigo: { type: 'string' },
+                          nombre: { type: 'string' },
+                          ventas: { type: 'number' },
+                          margen: { type: 'number' },
+                        },
+                        required: ['codigo', 'nombre', 'ventas', 'margen'],
+                        additionalProperties: false,
+                      },
+                      tipo_relacion: { type: 'string' },
+                      'nivel_canibalización': { type: 'string' },
+                      impacto_economico: {
+                        type: 'object',
+                        properties: {
+                          perdida_mensual_estimada: { type: 'number' },
+                          explicacion: { type: 'string' },
+                        },
+                        required: ['perdida_mensual_estimada', 'explicacion'],
+                        additionalProperties: false,
+                      },
+                      recomendacion: {
+                        type: 'object',
+                        properties: {
+                          accion: { type: 'string' },
+                          producto_favorecer: { type: 'string' },
+                          razon: { type: 'string' },
+                          ganancia_proyectada: { type: 'number' },
+                        },
+                        required: ['accion', 'producto_favorecer', 'razon', 'ganancia_proyectada'],
+                        additionalProperties: false,
+                      },
+                    },
+                    required: [
+                      'producto_a',
+                      'producto_b',
+                      'tipo_relacion',
+                      'nivel_canibalización',
+                      'impacto_economico',
+                      'recomendacion',
+                    ],
+                    additionalProperties: false,
+                  },
+                },
+                total_casos: { type: 'integer' },
+                impacto_total_mensual: { type: 'number' },
+              },
+              required: ['resumen', 'casos_detectados', 'total_casos', 'impacto_total_mensual'],
+              additionalProperties: false,
+            },
+          },
+        },
       });
 
       insights = JSON.parse(completion.choices[0]?.message?.content || '{}');
@@ -229,6 +311,7 @@ IMPORTANTE:
             },
           },
         },
+        orderBy: { fecha: 'desc' },
         take: 5000, // Limitar para performance
       });
 
@@ -313,7 +396,10 @@ IMPORTANTE:
       const productosCount = new Map<string, number>();
 
       for (const boleta of boletas) {
-        const productos = boleta.boletas_detalles.map(d => d.codigo).filter(Boolean) as string[];
+        // Una boleta cuenta una sola vez por producto, aunque tenga líneas duplicadas.
+        const productos = [...new Set(
+          boleta.boletas_detalles.map(d => d.codigo).filter(Boolean) as string[]
+        )];
         
         // Contar productos individuales
         for (const codigo of productos) {
@@ -337,47 +423,80 @@ IMPORTANTE:
           const count2 = productosCount.get(codigo2) || 0;
           
           const soporte = count; // Veces que se compraron juntos
-          const confianza1 = count1 > 0 ? (count / count1) * 100 : 0; // % de veces que A implica B
-          const confianza2 = count2 > 0 ? (count / count2) * 100 : 0;
-          const confianzaPromedio = (confianza1 + confianza2) / 2;
-
           const info1 = productosMap.get(codigo1);
           const info2 = productosMap.get(codigo2);
 
           if (!info1 || !info2) return null;
 
-          const precio1 = info1.precioPromedio;
-          const precio2 = info2.precioPromedio;
-          const costo1 = info1.costo;
-          const costo2 = info2.costo;
+          // El ancla es el producto que aparece en más boletas; confianza = soporte / boletas del ancla.
+          const producto1EsAncla = count1 >= count2;
+          const productoAncla = producto1EsAncla ? info1 : info2;
+          const productoComplementario = producto1EsAncla ? info2 : info1;
+          const codigoAncla = producto1EsAncla ? codigo1 : codigo2;
+          const codigoComplementario = producto1EsAncla ? codigo2 : codigo1;
+          const ventasAncla = Math.max(count1, count2);
+          const precioAncla = productoAncla.precioPromedio;
+          const precioComplementario = productoComplementario.precioPromedio;
+          const costoAncla = productoAncla.costo;
+          const costoComplementario = productoComplementario.costo;
 
           return {
             producto1: {
-              codigo: codigo1,
-              nombre: info1.nombre,
-              ventas: count1,
-              precio: precio1,
-              costo: costo1,
-              margen: precio1 > 0 ? ((precio1 - costo1) / precio1) * 100 : 0,
+              codigo: codigoAncla,
+              nombre: productoAncla.nombre,
+              ventas: ventasAncla,
+              precio: precioAncla,
+              costo: costoAncla,
+              margen: precioAncla > 0 ? ((precioAncla - costoAncla) / precioAncla) * 100 : 0,
             },
             producto2: {
-              codigo: codigo2,
-              nombre: info2.nombre,
-              ventas: count2,
-              precio: precio2,
-              costo: costo2,
-              margen: precio2 > 0 ? ((precio2 - costo2) / precio2) * 100 : 0,
+              codigo: codigoComplementario,
+              nombre: productoComplementario.nombre,
+              ventas: producto1EsAncla ? count2 : count1,
+              precio: precioComplementario,
+              costo: costoComplementario,
+              margen: precioComplementario > 0
+                ? ((precioComplementario - costoComplementario) / precioComplementario) * 100
+                : 0,
             },
             soporte,
-            confianza: confianzaPromedio,
-            ticketPromedio: precio1 + precio2,
-            margenCombinado: ((precio1 - costo1) + (precio2 - costo2)),
+            confianza: ventasAncla > 0 ? (soporte / ventasAncla) * 100 : 0,
+            ticketPromedioActual: precioAncla,
+            ticketConCombo: precioAncla + precioComplementario,
+            margenCombinado: (precioAncla - costoAncla) + (precioComplementario - costoComplementario),
           };
         })
         .filter(Boolean)
-        .filter(p => p!.soporte >= 5 && p!.confianza >= 15) // Filtros mínimos
-        .sort((a, b) => b!.confianza - a!.confianza)
-        .slice(0, 20); // Top 20 pares
+        // Solo se presentan patrones con soporte >10 y confianza >30%.
+        .filter(p => p!.soporte > 10 && p!.confianza > 30)
+        .sort((a, b) => b!.confianza - a!.confianza || b!.soporte - a!.soporte)
+        .slice(0, 10); // Top 10 pares para mantener acotada la respuesta
+
+      if (paresAnalizados.length === 0) {
+        const resumen = boletas.length === 0
+          ? 'No hay boletas en el período seleccionado para calcular patrones de compra conjunta.'
+          : `Se analizaron ${boletas.length.toLocaleString('es-CL')} boletas del período, pero ningún par superó simultáneamente los umbrales de confianza mayor a 30% y soporte mayor a 10 boletas. Esto significa que no hay evidencia suficiente para recomendar un combo con esos criterios; no demuestra que los productos nunca se compren juntos.`;
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            insightType,
+            insights: {
+              resumen,
+              patrones_detectados: [],
+              top_estrategias: [],
+              impacto_total_mensual: 0,
+            },
+            metadata: {
+              fechaInicio,
+              fechaFin,
+              sucursal,
+              boletasAnalizadas: boletas.length,
+              generadoEn: new Date().toISOString(),
+            },
+          },
+        });
+      }
 
       const prompt = `Eres un experto en merchandising y estrategias de venta cruzada para farmacias.
 
@@ -398,52 +517,7 @@ IMPORTANTE PARA MÉTRICAS:
 
 TAREA: Analiza estos patrones y genera ESTRATEGIAS DE CROSS-SELL accionables.
 
-DEBES RESPONDER EN JSON con esta estructura EXACTA:
-{
-  "resumen": "Resumen de los patrones detectados (2-3 líneas)",
-  "patrones_detectados": [
-    {
-      "nombre_patron": "Nombre descriptivo del patrón (ej: Kit Resfriado)",
-      "productos": [
-        {
-          "codigo": "código",
-          "nombre": "nombre",
-          "rol": "producto ancla / complemento"
-        }
-      ],
-      "confianza": número (porcentaje),
-      "soporte": número (veces comprados juntos),
-      "metricas": {
-        "ticket_promedio_actual": número (PRECIO DEL PRODUCTO ANCLA SOLO - usa producto1.precio),
-        "ticket_con_combo": número (PRECIO ANCLA + COMPLEMENTARIO - usa producto1.precio + producto2.precio),
-        "incremento_ticket": número (PORCENTAJE: ((ticket_con_combo - ticket_promedio_actual) / ticket_promedio_actual) * 100),
-        "margen_combinado": número
-      },
-      "estrategias": [
-        {
-          "tipo": "sugerencia en caja / pack promocional / ubicación física / descuento combo",
-          "descripcion": "Explicación detallada de cómo implementar",
-          "ejemplo_frase": "Frase específica que el vendedor debe usar",
-          "descuento_sugerido": número (porcentaje, si aplica),
-          "precio_pack": número (si es pack),
-          "conversion_esperada": número (porcentaje de incremento en ventas),
-          "ganancia_mensual_proyectada": número en CLP,
-          "facilidad_implementacion": "fácil / media / difícil"
-        }
-      ],
-      "impacto_total": número en CLP mensual
-    }
-  ],
-  "top_estrategias": [
-    {
-      "patron": "nombre",
-      "estrategia": "descripción breve",
-      "impacto": número en CLP,
-      "prioridad": "alta / media / baja"
-    }
-  ],
-  "impacto_total_mensual": número en CLP
-}
+Devuelve el objeto JSON según el esquema solicitado. Propón como máximo 5 patrones y una estrategia práctica por patrón.
 
 EJEMPLO DE CÁLCULO CORRECTO:
 Si producto ancla (PARACETAMOL) cuesta $1000 y complemento (TAPSIN) cuesta $2000:
@@ -453,10 +527,13 @@ Si producto ancla (PARACETAMOL) cuesta $1000 y complemento (TAPSIN) cuesta $2000
 
 IMPORTANTE:
 - Enfócate en patrones con alta confianza (>30%) y soporte (>10)
+- Usa exclusivamente los pares, el soporte y la confianza entregados en los datos; no inventes pares ni métricas
 - Sé creativo con los nombres de patrones (ej: "Kit Dolor de Cabeza", "Combo Diabetes")
 - Las estrategias deben ser ESPECÍFICAS y ACCIONABLES
 - Prioriza estrategias de bajo costo de implementación
-- SIEMPRE calcula ticket_promedio_actual como el precio del producto ancla SOLO`;
+- SIEMPRE calcula ticket_promedio_actual como el precio del producto ancla SOLO
+- ticket_con_combo = precio del ancla + precio del complemento
+- Los campos numéricos deben ser números sin símbolos de moneda; usa 0 cuando un descuento o precio de pack no aplique`;
 
       const completion = await groq.chat.completions.create({
         messages: [
@@ -469,10 +546,119 @@ IMPORTANTE:
             content: prompt,
           },
         ],
-        model: 'llama-3.3-70b-versatile',
+        model: GROQ_MODEL,
         temperature: 0.4,
-        max_tokens: 4000,
-        response_format: { type: 'json_object' },
+        max_completion_tokens: 6000,
+        reasoning_effort: 'low',
+        include_reasoning: false,
+        response_format: {
+          type: 'json_schema',
+          json_schema: {
+            name: 'analisis_venta_cruzada',
+            strict: true,
+            schema: {
+              type: 'object',
+              properties: {
+                resumen: { type: 'string' },
+                patrones_detectados: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      nombre_patron: { type: 'string' },
+                      productos: {
+                        type: 'array',
+                        items: {
+                          type: 'object',
+                          properties: {
+                            codigo: { type: 'string' },
+                            nombre: { type: 'string' },
+                            rol: { type: 'string' },
+                          },
+                          required: ['codigo', 'nombre', 'rol'],
+                          additionalProperties: false,
+                        },
+                      },
+                      confianza: { type: 'number' },
+                      soporte: { type: 'integer' },
+                      metricas: {
+                        type: 'object',
+                        properties: {
+                          ticket_promedio_actual: { type: 'number' },
+                          ticket_con_combo: { type: 'number' },
+                          incremento_ticket: { type: 'number' },
+                          margen_combinado: { type: 'number' },
+                        },
+                        required: [
+                          'ticket_promedio_actual',
+                          'ticket_con_combo',
+                          'incremento_ticket',
+                          'margen_combinado',
+                        ],
+                        additionalProperties: false,
+                      },
+                      estrategias: {
+                        type: 'array',
+                        items: {
+                          type: 'object',
+                          properties: {
+                            tipo: { type: 'string' },
+                            descripcion: { type: 'string' },
+                            ejemplo_frase: { type: 'string' },
+                            descuento_sugerido: { type: 'number' },
+                            precio_pack: { type: 'number' },
+                            conversion_esperada: { type: 'number' },
+                            ganancia_mensual_proyectada: { type: 'number' },
+                            facilidad_implementacion: { type: 'string' },
+                          },
+                          required: [
+                            'tipo',
+                            'descripcion',
+                            'ejemplo_frase',
+                            'descuento_sugerido',
+                            'precio_pack',
+                            'conversion_esperada',
+                            'ganancia_mensual_proyectada',
+                            'facilidad_implementacion',
+                          ],
+                          additionalProperties: false,
+                        },
+                      },
+                      impacto_total: { type: 'number' },
+                    },
+                    required: [
+                      'nombre_patron',
+                      'productos',
+                      'confianza',
+                      'soporte',
+                      'metricas',
+                      'estrategias',
+                      'impacto_total',
+                    ],
+                    additionalProperties: false,
+                  },
+                },
+                top_estrategias: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      patron: { type: 'string' },
+                      estrategia: { type: 'string' },
+                      impacto: { type: 'number' },
+                      prioridad: { type: 'string' },
+                    },
+                    required: ['patron', 'estrategia', 'impacto', 'prioridad'],
+                    additionalProperties: false,
+                  },
+                },
+                impacto_total_mensual: { type: 'number' },
+              },
+              required: ['resumen', 'patrones_detectados', 'top_estrategias', 'impacto_total_mensual'],
+              additionalProperties: false,
+            },
+          },
+        },
       });
 
       insights = JSON.parse(completion.choices[0]?.message?.content || '{}');

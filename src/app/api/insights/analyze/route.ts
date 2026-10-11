@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { GROQ_MODEL } from '@/lib/groq-model';
 import Groq from 'groq-sdk';
 
 // Configurar Groq (alternativa gratuita a OpenAI)
@@ -9,7 +10,7 @@ const groq = new Groq({
 });
 
 // Tipos de insights disponibles
-type InsightType = 
+type InsightType =
   | 'tendencias-ventas'      // Productos con tendencia al alza
   | 'estacionalidad'         // Patrones estacionales
   | 'oportunidades-compra'   // Qué comprar para maximizar ganancias
@@ -88,9 +89,9 @@ async function obtenerDatosVentas(fechaInicio: Date, fechaFin: Date, sucursal?: 
 
     ventasDetalladas.forEach((detalle) => {
       const codigo = detalle.codigo;
-      
+
       if (!codigo) return; // Skip si no hay código
-      
+
       if (!productoMap.has(codigo)) {
         productoMap.set(codigo, {
           codigo,
@@ -128,7 +129,7 @@ async function obtenerDatosVentas(fechaInicio: Date, fechaFin: Date, sucursal?: 
       p.ventasPorMes.forEach((ventas: number, mes: string) => {
         ventasMesuales.push({ mes, ventas });
       });
-      
+
       return {
         ...p,
         margenDinero: p.ingresosSinIVA - p.costoTotal,
@@ -445,9 +446,9 @@ export async function POST(request: NextRequest) {
     // Validar que existe API key
     if (!process.env.GROQ_API_KEY) {
       return NextResponse.json(
-        { 
+        {
           error: 'No se ha configurado la API key de Groq. Agrega GROQ_API_KEY en .env.local',
-          success: false 
+          success: false
         },
         { status: 500 }
       );
@@ -482,7 +483,7 @@ export async function POST(request: NextRequest) {
 
     // Llamar a Groq IA
     const completion = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile', // Modelo más reciente de Groq (gratis, reemplaza 3.1)
+      model: GROQ_MODEL,
       messages: [
         {
           role: 'system',
@@ -495,7 +496,7 @@ export async function POST(request: NextRequest) {
         },
       ],
       temperature: 0.3, // Respuestas más deterministas
-      max_tokens: 2000,
+      max_tokens: 10000,
       response_format: { type: 'json_object' }, // Forzar respuesta JSON
     });
 
