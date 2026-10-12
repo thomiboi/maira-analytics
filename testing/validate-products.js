@@ -1,4 +1,4 @@
-// Script para validar productos únicos - ejecutar con node
+// Script de testing para validar productos únicos - ejecutar con node testing/validate-products.js
 const { createClient } = require('@supabase/supabase-js')
 
 // Configuración de Supabase (reemplazar con las variables reales)

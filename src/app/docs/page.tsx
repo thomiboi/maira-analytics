@@ -15,26 +15,18 @@ const spec = {
     version: "1.0.0",
     description: `API REST para el sistema de análisis de productos farmacéuticos y proveedores.
 
-**⚠️ IMPORTANTE - Autenticación:**
-- El **login** NO se realiza mediante un endpoint de esta API
-- La autenticación se maneja directamente con **Supabase Auth** en la página /login
-- Para probar los endpoints protegidos:
-  1. Inicia sesión en: http://localhost:3000/login
-  2. Usa las credenciales: admin@example.com / password123
-  3. Copia el token de sesión desde las cookies o DevTools
-  4. Haz clic en "Authorize" 🔓 y pega el token
+**Autenticación:**
+- El inicio de sesión se realiza con **Supabase Auth** en /login; no existe un endpoint de login en esta API.
+- Los endpoints autenticados validan la cookie de sesión de Supabase.
+- Para probarlos, inicia sesión en la aplicación y abre /docs en el mismo navegador. Swagger UI enviará la cookie al llamar al servidor del mismo origen.
+- No copies tokens de sesión ni uses Bearer Authorization: la API espera la sesión en cookies.
 
 **Endpoints Disponibles:**
-- ✅ /api/auth/logout - Cerrar sesión y limpiar caché
-- ✅ /api/user/permissions - Obtener permisos del usuario
-- ✅ /api/users/sync - Sincronizar usuario con base de datos
-- ✅ /api/providers/* - Gestión de proveedores
-- ✅ /api/messages/* - Sistema de mensajería
-- ✅ Y más...`,
-    contact: {
-      name: "Soporte Técnico",
-      email: "soporte@maira-analytics.com",
-    },
+- /api/auth/logout, /api/user/* y /api/users/* - sesión, permisos y usuarios
+- /api/dashboard y /api/pharmacy/* - datos y operaciones de farmacia
+- /api/providers/* - proveedores y comparación de precios
+- /api/messages/* - mensajería interna
+- /api/catalog y /api/ranking/* - catálogo y rankings`,
   },
   servers: [
     {
@@ -61,10 +53,6 @@ const spec = {
       description: "Sistema de mensajería interna",
     },
     {
-      name: "Notificaciones",
-      description: "Gestión de notificaciones del sistema",
-    },
-    {
       name: "Productos",
       description: "Gestión y búsqueda de productos",
     },
@@ -88,7 +76,6 @@ const spec = {
         summary: "Cerrar sesión y limpiar caché",
         description:
           "Limpia el caché de permisos del usuario autenticado. La autenticación se maneja a través de Supabase Auth.",
-        security: [{ bearerAuth: [] }],
         responses: {
           "200": {
             description: "Caché limpiado exitosamente",
@@ -124,7 +111,6 @@ const spec = {
         summary: "Obtener permisos del usuario actual",
         description:
           "Retorna los permisos y rol del usuario autenticado desde el caché o base de datos",
-        security: [{ bearerAuth: [] }],
         responses: {
           "200": {
             description: "Permisos obtenidos exitosamente",
@@ -180,7 +166,6 @@ const spec = {
         tags: ["Usuarios"],
         summary: "Sincronizar usuario con base de datos",
         description: "Crea o actualiza el usuario en la base de datos Prisma",
-        security: [{ bearerAuth: [] }],
         requestBody: {
           required: true,
           content: {
@@ -248,24 +233,26 @@ const spec = {
         },
       },
     },
-    "/dashboard/metrics": {
+    "/dashboard": {
       get: {
         tags: ["Dashboard"],
-        summary: "Obtener métricas del dashboard",
-        description: "Retorna métricas generales del sistema",
-        security: [{ bearerAuth: [] }],
+        summary: "Obtener estadísticas del dashboard",
+        description: "Retorna estadísticas de publicaciones y usuarios para el usuario autenticado",
         responses: {
           "200": {
-            description: "Métricas obtenidas exitosamente",
+            description: "Estadísticas obtenidas exitosamente",
             content: {
               "application/json": {
                 schema: {
                   type: "object",
                   properties: {
-                    totalProviders: { type: "number" },
-                    totalProducts: { type: "number" },
-                    totalSales: { type: "number" },
-                    averagePrice: { type: "number" },
+                    totalUsers: { type: "integer" },
+                    totalPosts: { type: "integer" },
+                    publishedPosts: { type: "integer" },
+                    draftPosts: { type: "integer" },
+                    userPosts: { type: "integer" },
+                    recentActivity: { type: "array", items: { type: "object" } },
+                    metrics: { type: "object" },
                   },
                 },
               },
@@ -282,7 +269,6 @@ const spec = {
         tags: ["Proveedores"],
         summary: "Listar proveedores",
         description: "Obtiene la lista completa de proveedores",
-        security: [{ bearerAuth: [] }],
         parameters: [
           {
             name: "page",
@@ -339,7 +325,6 @@ const spec = {
         tags: ["Proveedores"],
         summary: "Crear proveedor",
         description: "Registra un nuevo proveedor en el sistema",
-        security: [{ bearerAuth: [] }],
         requestBody: {
           required: true,
           content: {
@@ -374,7 +359,6 @@ const spec = {
       get: {
         tags: ["Proveedores"],
         summary: "Obtener proveedor por ID",
-        security: [{ bearerAuth: [] }],
         parameters: [
           {
             name: "id",
@@ -396,7 +380,6 @@ const spec = {
       put: {
         tags: ["Proveedores"],
         summary: "Actualizar proveedor",
-        security: [{ bearerAuth: [] }],
         parameters: [
           {
             name: "id",
@@ -433,7 +416,6 @@ const spec = {
       delete: {
         tags: ["Proveedores"],
         summary: "Eliminar proveedor",
-        security: [{ bearerAuth: [] }],
         parameters: [
           {
             name: "id",
@@ -456,17 +438,7 @@ const spec = {
       get: {
         tags: ["Proveedores"],
         summary: "Proveedores desactualizados",
-        description:
-          "Lista proveedores que no han actualizado sus productos recientemente",
-        security: [{ bearerAuth: [] }],
-        parameters: [
-          {
-            name: "days",
-            in: "query",
-            schema: { type: "integer", default: 30 },
-            description: "Días sin actualización",
-          },
-        ],
+        description: "Lista proveedores creados hace más de siete días.",
         responses: {
           "200": {
             description: "Lista de proveedores desactualizados",
@@ -475,21 +447,25 @@ const spec = {
       },
     },
     "/providers/search-product": {
-      get: {
+      post: {
         tags: ["Proveedores"],
         summary: "Buscar producto en proveedores",
         description:
-          "Busca un producto específico entre todos los proveedores usando IA",
-        security: [{ bearerAuth: [] }],
-        parameters: [
-          {
-            name: "query",
-            in: "query",
-            required: true,
-            schema: { type: "string" },
-            description: "Término de búsqueda del producto",
+          "Busca un producto por nombre y compara los precios disponibles entre proveedores.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["productName"],
+                properties: {
+                  productName: { type: "string", example: "Paracetamol 500 mg" },
+                },
+              },
+            },
           },
-        ],
+        },
         responses: {
           "200": {
             description: "Resultados de búsqueda con comparación de precios",
@@ -502,7 +478,6 @@ const spec = {
         tags: ["Mensajes"],
         summary: "Bandeja de entrada",
         description: "Obtiene mensajes recibidos",
-        security: [{ bearerAuth: [] }],
         responses: {
           "200": {
             description: "Lista de mensajes",
@@ -514,7 +489,6 @@ const spec = {
       get: {
         tags: ["Mensajes"],
         summary: "Mensajes enviados",
-        security: [{ bearerAuth: [] }],
         responses: {
           "200": {
             description: "Lista de mensajes enviados",
@@ -526,21 +500,19 @@ const spec = {
       post: {
         tags: ["Mensajes"],
         summary: "Enviar mensaje",
-        security: [{ bearerAuth: [] }],
         requestBody: {
           required: true,
           content: {
             "application/json": {
               schema: {
                 type: "object",
-                required: ["receiverId", "subject", "content"],
+                required: ["asunto", "cuerpo", "destinatarios"],
                 properties: {
-                  receiverId: { type: "string" },
-                  subject: { type: "string" },
-                  content: { type: "string" },
-                  attachments: {
+                  asunto: { type: "string", example: "Actualización de stock" },
+                  cuerpo: { type: "string", example: "Revisar productos bajo stock mínimo." },
+                  destinatarios: {
                     type: "array",
-                    items: { type: "string" },
+                    items: { type: "string", format: "uuid" },
                   },
                 },
               },
@@ -558,7 +530,6 @@ const spec = {
       get: {
         tags: ["Mensajes"],
         summary: "Contador de mensajes no leídos",
-        security: [{ bearerAuth: [] }],
         responses: {
           "200": {
             description: "Cantidad de mensajes no leídos",
@@ -576,68 +547,11 @@ const spec = {
         },
       },
     },
-    "/notifications": {
-      get: {
-        tags: ["Notificaciones"],
-        summary: "Listar notificaciones",
-        security: [{ bearerAuth: [] }],
-        parameters: [
-          {
-            name: "status",
-            in: "query",
-            schema: { type: "string", enum: ["read", "unread", "all"] },
-          },
-        ],
-        responses: {
-          "200": {
-            description: "Lista de notificaciones",
-          },
-        },
-      },
-    },
-    "/notifications/mark-read": {
-      post: {
-        tags: ["Notificaciones"],
-        summary: "Marcar notificación como leída",
-        security: [{ bearerAuth: [] }],
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  notificationId: { type: "string" },
-                },
-              },
-            },
-          },
-        },
-        responses: {
-          "200": {
-            description: "Notificación marcada",
-          },
-        },
-      },
-    },
     "/catalog": {
       get: {
         tags: ["Productos"],
         summary: "Catálogo de productos",
-        description: "Obtiene el catálogo completo de productos",
-        security: [{ bearerAuth: [] }],
-        parameters: [
-          {
-            name: "category",
-            in: "query",
-            schema: { type: "string" },
-          },
-          {
-            name: "search",
-            in: "query",
-            schema: { type: "string" },
-          },
-        ],
+        description: "Obtiene el catálogo unificado con productos y precios de proveedores.",
         responses: {
           "200": {
             description: "Catálogo de productos",
@@ -650,18 +564,43 @@ const spec = {
         tags: ["Ranking"],
         summary: "Ranking de productos",
         description:
-          "Obtiene el ranking de productos más vendidos o mejor valorados",
-        security: [{ bearerAuth: [] }],
+          "Obtiene un ranking paginado de ventas por producto en un período.",
         parameters: [
           {
-            name: "type",
+            name: "sucursal",
             in: "query",
-            schema: { type: "string", enum: ["sales", "rating", "price"] },
+            schema: { type: "string" },
+            description: "Identificador de sucursal o 'todas'.",
           },
           {
-            name: "limit",
+            name: "fechaInicio",
             in: "query",
-            schema: { type: "integer", default: 10 },
+            schema: { type: "string", format: "date" },
+          },
+          {
+            name: "fechaFin",
+            in: "query",
+            schema: { type: "string", format: "date" },
+          },
+          {
+            name: "viewMode",
+            in: "query",
+            schema: { type: "string", enum: ["mas-vendidos", "mayor-margen", "frecuencia", "crecimiento"], default: "mas-vendidos" },
+          },
+          {
+            name: "search",
+            in: "query",
+            schema: { type: "string" },
+          },
+          {
+            name: "page",
+            in: "query",
+            schema: { type: "integer", default: 1 },
+          },
+          {
+            name: "pageSize",
+            in: "query",
+            schema: { type: "integer", default: 50 },
           },
         ],
         responses: {
@@ -672,35 +611,13 @@ const spec = {
       },
     },
     "/pharmacy/validate-products": {
-      post: {
+      get: {
         tags: ["Farmacia"],
         summary: "Validar productos farmacéuticos",
-        security: [{ bearerAuth: [] }],
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  products: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        code: { type: "string" },
-                        name: { type: "string" },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
+        description: "Endpoint de validación de productos pendiente de implementación completa.",
         responses: {
           "200": {
-            description: "Productos validados",
+            description: "Respuesta básica del endpoint de validación",
           },
         },
       },
@@ -710,7 +627,6 @@ const spec = {
         tags: ["Farmacia"],
         summary: "Diagnóstico del sistema",
         description: "Verifica el estado de la base de datos y configuración",
-        security: [{ bearerAuth: [] }],
         responses: {
           "200": {
             description: "Diagnóstico completado",
@@ -720,14 +636,6 @@ const spec = {
     },
   },
   components: {
-    securitySchemes: {
-      bearerAuth: {
-        type: "http",
-        scheme: "bearer",
-        bearerFormat: "JWT",
-        description: "Token JWT de autenticación",
-      },
-    },
     schemas: {
       Error: {
         type: "object",
@@ -753,7 +661,7 @@ export default function DocsPage() {
         <title>Documentación de API</title>
         <meta
           name="description"
-          content="Documentación completa de la API de Maira Analytics"
+          content="Documentación interactiva de endpoints de la API de Maira Analytics"
         />
       </Head>
       <div className="min-h-screen bg-gray-50">

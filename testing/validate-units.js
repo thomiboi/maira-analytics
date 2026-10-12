@@ -1,4 +1,4 @@
-// Script para validar las unidades vendidas en productos destacados
+// Script de testing para validar las unidades vendidas en productos destacados
 import { createClient } from '@/lib/supabase/server'
 
 async function validateTopProductsUnits() {

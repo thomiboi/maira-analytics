@@ -1,4 +1,4 @@
-// Test script to verify time period filtering is working correctly
+// Test script to verify time period filtering. Run with: node testing/test-time-periods.js
 
 async function testTimePeriods() {
     const baseUrl = 'http://localhost:3000/api/pharmacy/dashboard';

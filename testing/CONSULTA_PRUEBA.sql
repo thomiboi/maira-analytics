@@ -1,4 +1,4 @@
--- CONSULTA DE PRUEBA RÁPIDA
+-- CONSULTA DE PRUEBA RÁPIDA (archivo de testing)
 -- Ejecuta esto primero para verificar que tienes datos
 
 -- 1. Verificar si hay datos en las tablas

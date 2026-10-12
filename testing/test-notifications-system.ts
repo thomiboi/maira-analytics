@@ -6,7 +6,7 @@
  * 
  * USO:
  * 1. Asegúrate de tener las variables de entorno configuradas (.env.local)
- * 2. Ejecuta: npx tsx test-notifications-system.ts
+ * 2. Ejecuta: npx tsx testing/test-notifications-system.ts
  */
 
 import { createClient } from '@supabase/supabase-js';

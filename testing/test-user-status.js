@@ -1,5 +1,5 @@
 // Script de prueba para verificar el estado de usuarios
-// Ejecutar con: node test-user-status.js
+// Ejecutar con: node testing/test-user-status.js
 
 const testUserStatus = async () => {
   console.log('🧪 Probando sistema de habilitación/deshabilitación de usuarios\n');

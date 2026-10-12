@@ -1,4 +1,4 @@
--- DIAGNÓSTICO RÁPIDO DE DATOS
+-- DIAGNÓSTICO RÁPIDO DE DATOS (archivo de testing)
 -- Ejecuta estas consultas en Supabase SQL Editor
 
 -- 1. VERIFICAR SI HAY DATOS
