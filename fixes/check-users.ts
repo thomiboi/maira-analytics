@@ -1,4 +1,7 @@
+import { config } from 'dotenv'
 import { PrismaClient } from '@prisma/client'
+
+config({ path: '.env.local' })
 
 const prisma = new PrismaClient()
 

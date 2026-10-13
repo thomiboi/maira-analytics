@@ -12,8 +12,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
-    "sync:users": "tsx sync-user-ids.ts",
-    "check:users": "tsx check-users.ts"
+    "sync:users": "tsx fixes/sync-user-ids.ts",
+    "check:users": "tsx fixes/check-users.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
