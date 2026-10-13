@@ -260,7 +260,7 @@ export class PharmacyDataService {
             const supabase = await createClient()
             const { error } = await supabase
                 .from('boletas')
-                .select('count', { count: 'exact', head: true })
+                .select('folio', { count: 'exact', head: true })
                 .limit(1)
 
             return !error

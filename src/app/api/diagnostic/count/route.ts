@@ -4,19 +4,24 @@ import { createClient } from '@/lib/supabase/server'
 export async function GET() {
     try {
         const supabase = await createClient()
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+        if (authError || !user) {
+            return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+        }
 
         // Contar registros totales en cada tabla
         const { count: boletasCount, error: boletasError } = await supabase
             .from('boletas')
-            .select('*', { count: 'exact', head: true })
+            .select('folio', { count: 'exact', head: true })
 
         const { count: detallesCount, error: detallesError } = await supabase
             .from('boletas_detalles')
-            .select('*', { count: 'exact', head: true })
+            .select('id', { count: 'exact', head: true })
 
         const { count: pagosCount, error: pagosError } = await supabase
             .from('boletas_pagos')
-            .select('*', { count: 'exact', head: true })
+            .select('id', { count: 'exact', head: true })
 
         if (boletasError || detallesError || pagosError) {
             return NextResponse.json(

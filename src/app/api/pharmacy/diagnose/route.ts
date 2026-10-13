@@ -18,17 +18,17 @@ export async function GET() {
         const connectionTest = await PharmacyDataService.testConnection()
 
         // Obtener información básica de las tablas
-        const { data: boletasCount } = await supabase
+        const { count: boletasCount } = await supabase
             .from('boletas')
-            .select('*', { count: 'exact', head: true })
+            .select('folio', { count: 'exact', head: true })
 
-        const { data: detallesCount } = await supabase
+        const { count: detallesCount } = await supabase
             .from('boletas_detalles')
-            .select('*', { count: 'exact', head: true })
+            .select('id', { count: 'exact', head: true })
 
-        const { data: pagosCount } = await supabase
+        const { count: pagosCount } = await supabase
             .from('boletas_pagos')
-            .select('*', { count: 'exact', head: true })
+            .select('id', { count: 'exact', head: true })
 
         return NextResponse.json({
             success: true,
@@ -37,9 +37,9 @@ export async function GET() {
             diagnosis,
             connectionTest,
             tableInfo: {
-                boletas: boletasCount || 0,
-                boletas_detalles: detallesCount || 0,
-                boletas_pagos: pagosCount || 0
+                boletas: boletasCount ?? 0,
+                boletas_detalles: detallesCount ?? 0,
+                boletas_pagos: pagosCount ?? 0
             },
             summary: {
                 connectionWorking: connectionTest,

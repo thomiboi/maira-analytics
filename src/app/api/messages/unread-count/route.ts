@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
@@ -11,7 +10,7 @@ export async function GET() {
 
     const { count, error } = await supabase
         .from('mensaje_destinatarios')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact', head: true })
         .eq('destinatario_id', authData.user.id)
         .is('deleted_at', null)
         .is('read_at', null)

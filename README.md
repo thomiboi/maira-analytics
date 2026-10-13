@@ -104,7 +104,9 @@ Estas variables se utilizan al ejecutar `npm run db:seed`; no son necesarias par
 
 ## Base de datos y ejecución
 
-Configura las conexiones de Supabase en `.env.local`. Luego genera el cliente Prisma, sincroniza el esquema y arranca Next.js:
+Configura las conexiones de Supabase en `.env.local`. En una base vacía, ejecuta en el SQL Editor de Supabase las migraciones de `supabase/migrations` en orden: primero `20261010235016_init_schema.sql` y luego `20261013000000_harden_public_access.sql`. Si tu base ya tiene el esquema inicial, ejecuta solo la migración de hardening. Esta segunda migración revoca el acceso anónimo y configura RLS; `prisma db push` no aplica políticas ni permisos SQL.
+
+Luego genera el cliente Prisma, sincroniza el esquema y arranca Next.js:
 
 ```bash
 npx prisma generate
@@ -234,7 +236,7 @@ La secuencia siguió una lógica de menos a más. Primero construimos la base (a
 
 Al cierre del proyecto se reportaron operativos los insights de IA y las alertas de stock bajo. Quedó pendiente autorizar la puesta en producción de las Edge Functions nocturnas.
 
-La explicación técnica del ETL describe una herramienta que consulta Lioren por folio, conserva las boletas en el IndexedDB del navegador y permite exportarlas como JSON, CSV o SQL. La carga del archivo exportado a otra base de datos es manual. El flujo de extracción por folio y reanudación documentado allí no equivale a la ingesta productiva nocturna mediante Edge Functions, que no se habilitó.
+La explicación técnica del ETL describe una herramienta que consulta el POS del cliente por folio, conserva las boletas en el IndexedDB del navegador y permite exportarlas como JSON, CSV o SQL. La carga del archivo exportado a otra base de datos es manual. El flujo de extracción por folio y reanudación documentado allí no equivale a la ingesta productiva nocturna mediante Edge Functions, que no se habilitó.
 
 ---
 # Documentación de gestión realizada
@@ -253,7 +255,7 @@ Se elaboró una Carta Gantt, un cronograma organizado por épicas y tareas atóm
 
 Se realizó un diagrama de arquitectura para representar los componentes y flujos principales. La solución utiliza Next.js, React, TypeScript, Supabase, PostgreSQL, Prisma, Tailwind CSS y Groq. La documentación interactiva de una selección de endpoints está disponible en la aplicación mediante Swagger UI (`/docs`).
 
-El POS Lioren permitía consultar boletas por folio. El proceso ETL descrito en la documentación consulta folios secuencialmente, guarda datos localmente en IndexedDB y permite exportarlos para una carga posterior. La aplicación también contempla una carga planificada durante la noche mediante Supabase Edge Functions; esa automatización no se habilitó en producción porque estaba pendiente la autorización de la clienta. El ETL local y la ingesta nocturna son procesos distintos.
+El POS del cliente permitía consultar boletas por folio. El proceso ETL descrito en la documentación consulta folios secuencialmente, guarda datos localmente en IndexedDB y permite exportarlos para una carga posterior. La aplicación también contempla una carga planificada durante la noche mediante Supabase Edge Functions; esa automatización no se habilitó en producción porque estaba pendiente la autorización de la clienta. El ETL local y la ingesta nocturna son procesos distintos.
 
 ## Scrum y seguimiento
 
